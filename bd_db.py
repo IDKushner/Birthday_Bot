@@ -31,3 +31,42 @@ def save_birthday(user_id, birthday_data):
             {'_id': user['_id']},
             {'$push': {'birthday_list': birthday_data}}
     )
+
+def user_birthday_list(user_id):
+    # Монго выдаёт объект класса Cursor
+    # итерируем его через эту функцию, чтобы получить нормальный список словарей
+    unfiltered_user_birthdays_data = db.users.find({'user_id':user_id}, {'birthday_list':1, '_id':0})
+   
+    for i in unfiltered_user_birthdays_data:
+        user_birthday_list = i['birthday_list']
+    
+    return user_birthday_list
+
+def check_person(user_id, name):
+    birthday_list = user_birthday_list(user_id)
+    
+    for person in birthday_list:
+        if person != None:
+            if person['name'] == name:
+                return person
+    return False
+
+def delete_person(user_id, name):
+    birthday_list = user_birthday_list(user_id)
+    
+    for person in birthday_list:
+        if person != None:
+            if person['name'] == name:
+                delete_ind = 'birthday_list.' + str(birthday_list.index(person))
+                db.users.update_one({'user_id':user_id}, {'$unset': {delete_ind:'name'}})
+    return False
+
+def update_person(user_id, user_data):
+    birthday_list = user_birthday_list(user_id)
+
+    for person in birthday_list:
+        if person != None:
+            if person['name'] == user_data['name']:
+                update_ind = 'birthday_list' + '.' + str(birthday_list.index(person)) + '.' + user_data['field']
+                db.users.update_one({'user_id':user_id}, {'$set': {update_ind:user_data['change']}})
+    return False

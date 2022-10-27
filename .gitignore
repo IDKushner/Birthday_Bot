@@ -1,4 +1,4 @@
 *.log
-_pycache_
+__pycache*
 *Settings*
 test*
