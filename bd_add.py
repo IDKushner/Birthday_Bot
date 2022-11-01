@@ -2,15 +2,22 @@ from telegram import ParseMode, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ConversationHandler
 
 from bd_db import db, get_or_create_user, save_birthday
-from bd_general_handlers import confirm_date
-from bd_utils import main_keyboard, skip_keyboard
+from bd_general_handlers import confirm_date, check_if_upcoming, confirm_reminder_date
+from bd_utils import main_keyboard, skip_keyboard, return_keyboard
 
 def add_start(update, context):
     update.message.reply_text(
         'Добавим новый др! Сначала введи имя/ФИО человека',
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=return_keyboard()
     )
     return 'name'
+
+def add_return(update, context):
+    update.message.reply_text(
+        'Упс, возвращаемся',
+        reply_markup=main_keyboard()
+    )
+    return ConversationHandler.END
 
 def add_name(update, context):
     name = update.message.text
@@ -33,25 +40,45 @@ def add_date(update, context):
         return 'date'
     else:
         context.user_data['birthday']['date'] = date
-        priority_keyboard = [['1', '2', '3']]
-        update.message.reply_text('''Теперь поставь приоритет:\nО <b> 1м приоретете </b>буду напоминать за 14, 3 и 0 дней до др.\nО <b> 2м приоретете </b>за 3 и 0 дней\nО <b> 3м приоретете </b>только за 0 дней (день в день)''',
+        context.user_data['birthday']['upcoming_birthday'] = check_if_upcoming(date)
+        reminder_date_keyboard = [['0', '3', '14']]
+        update.message.reply_text('Теперь поставь как минимум одно количество дней, за которое тебе надо напомнить о приближающемся др.\nВот пара готовых вариантов: если напоминать день в день, жми "0".',
             parse_mode=ParseMode.HTML,
-            reply_markup=ReplyKeyboardMarkup(priority_keyboard, one_time_keyboard=True, resize_keyboard=True))
-        return 'priority'
+            reply_markup=ReplyKeyboardMarkup(reminder_date_keyboard, one_time_keyboard=True, resize_keyboard=True))
+        return 'reminder_dates'
 
-def add_priority(update, context):
-    context.user_data['birthday']['priority'] = int(update.message.text)
+def add_reminder_date(update, context):
+    reminder_date = update.message.text
+    reminder_date_confirmation = confirm_reminder_date(reminder_date)
+
+    if reminder_date_confirmation != True:
+        update.message.reply_text(reminder_date_confirmation)
+        return 'reminder_dates'
+    else:
+        reminder_date = abs(int(reminder_date))
+
+    if reminder_date > 366:
+        update.message.reply_text('Нельзя ставить напоминания больше чам за год до др')
+        return 'reminder_dates'
+
+    if 'reminder_dates' in context.user_data['birthday']:
+        if reminder_date > 31:
+            update.message.reply_text('Я-то напомню, но хз, зачем тебе напоминание раньше чем за месяц')
+        context.user_data['birthday']['reminder_dates'].append(reminder_date)
+    else:
+        context.user_data['birthday']['reminder_dates'] = [reminder_date]
+    
+    update.message.reply_text(
+            'Ещё одно напоминание ставим? Если да, напиши ещё. Если нет - нажми "Пропустить"',
+            reply_markup=skip_keyboard()
+        )
+    return 'additional_reminder_dates'
+
+def skip_additional_reminder_dates(update, context):
     update.message.reply_text('''Хочешь ввести интересы этого человека, чтобы не забыть при выборе подарка?\nЕсли хочешь, введи интересы в свободной форме.\nПотом ты сможешь их изменить (но для этого их придётся переписать)''',
         reply_markup=skip_keyboard()
     )
     return 'interests'
-
-def skip_interests(update, context):
-    update.message.reply_text(
-        'Хочешь ввести идеи подарков этому человеку? Потом ты сможешь их изменить',
-        reply_markup=skip_keyboard()
-        )
-    return 'present_name'
 
 def add_interests(update, context):
     context.user_data['birthday']['interests'] = update.message.text
@@ -59,6 +86,13 @@ def add_interests(update, context):
     update.message.reply_text(
         'Введи идеи подарков этому человеку (и мб ссылки на них) или нажми "Пропустить". Ты сможешь изменить идеи, если захочешь',
         reply_markup=ReplyKeyboardMarkup(possible_present_keyboard, one_time_keyboard=True, resize_keyboard=True)
+        )
+    return 'present_name'
+
+def skip_interests(update, context):
+    update.message.reply_text(
+        'Хочешь ввести идеи подарков этому человеку? Потом ты сможешь их изменить',
+        reply_markup=skip_keyboard()
         )
     return 'present_name'
 
@@ -98,10 +132,14 @@ def skip_presents(update, context):
 
 def format_add(birthday):
     text = f'''
-    <b>ДР записан </b>\n<b>Имя: </b> {birthday['name']}\n<b>Дата: </b> {birthday['date']}\n<b>Приоритет: </b> {birthday['priority']}
+    <b>ДР записан </b>\n<b>Имя: </b> {birthday['name']}\n<b>Дата: </b> {birthday['date']}
     '''
+    if 'reminder_dates' in birthday:
+        text += '\n<b>Количество дней, за которое предупреждать о ДР</b>:'
+        for reminder_date in birthday['reminder_dates']:
+            text += f'\n{birthday["reminder_dates"].index(reminder_date)+1}) {reminder_date}'
     if 'interests' in birthday:
-        text += f'<b>\nИнтересы: </b> {birthday["interests"]}'
+        text += f'\n<b>Интересы: </b> {birthday["interests"]}'
     if 'possible_presents' in birthday:
         text += f'\n<b>Идеи подарков: </b>'
         for present in birthday["possible_presents"]:

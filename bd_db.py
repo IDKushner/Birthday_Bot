@@ -20,7 +20,6 @@ def get_or_create_user(db, effective_user, chat_id):
 
 def save_birthday(user_id, birthday_data):
     user = db.users.find_one({"user_id": user_id})
-    birthday_data['created'] = datetime.today()
     if not 'birthday_list' in user:
         db.users.update_one(
             {'_id': user['_id']},
@@ -68,5 +67,22 @@ def update_person(user_id, user_data):
         if person != None:
             if person['name'] == user_data['name']:
                 update_ind = 'birthday_list' + '.' + str(birthday_list.index(person)) + '.' + user_data['field']
+                if 'upcoming_birthday' in user_data:
+                    upcoming_ind = 'birthday_list' + '.' + str(birthday_list.index(person)) + '.upcoming_birthday'
+                    db.users.update_one(
+                        {'user_id':user_id}, 
+                        {'$set': {upcoming_ind:user_data['upcoming_birthday']}}
+                    )
                 db.users.update_one({'user_id':user_id}, {'$set': {update_ind:user_data['change']}})
     return False
+
+def make_all_birthdays_upcoming():
+    for user in db.users.find():
+        birthday_list = user_birthday_list(user['user_id'])
+        for person in birthday_list:
+            if person != None:
+                upcoming_ind = 'birthday_list' + '.' + str(birthday_list.index(person)) + '.upcoming_birthday'
+                db.users.update_one(
+                    {'user_id':user['user_id']}, 
+                    {'$set': {upcoming_ind:True}}
+                )

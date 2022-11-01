@@ -1,22 +1,21 @@
 from telegram import ParseMode, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from datetime import datetime, date
 
-from bd_db import db, get_or_create_user, user_birthday_list
+from bd_db import db, get_or_create_user, user_birthday_list, update_person, make_all_birthdays_upcoming
 from bd_utils import main_keyboard
 
 
 def start(update, context):
-    print('вызван /start')
     user = get_or_create_user(db, update.effective_user, update.message.chat.id)
     update.message.reply_text(
         f'''Привет, {update.effective_user.first_name}!\nЯ - бот-поздравляшка, буду напоминать о днях рождения твоих друзей и близких\nДавай начнём :)
         ''',
-        reply_markup=main_keyboard(),
+        reply_markup=main_keyboard(), 
     )
 
 def explain(update, context):
     update.message.reply_text(
-        '''<b> Что я умею: </b>\n<b>Запоминать дни рождения:</b> нажми "Добавить др", введи данные и приоритет (1, 2 или 3). В зависимости от приоритета человека я буду напоминать тебе о его др день в день (1, 2, 3), за 3 дня (1, 2) и за 2 недели (1)\n<b>Удалять дни рождения:</b> нажми "Удалить др", введи имя, и я больше тебе о нём не напомню! (Не очень-то и хотелось)
+        '''<b> Что я умею: </b>\n\n<b>Запоминать людей:</b> нажми "Добавить" и ответь на вопросы\n<b>Проверять человека в базе:</b> нажми "Проверить" и введи имя человека: если он есть, я выдам тебе всю имеющуюся информацию о нём. Если его нет - скажу об этом\n<b>Изменять</b> любые данные, которые ты вносил при добавлении человека (имя, дату др, интересы и пр.). Для этого нажми "Изменить"\n<b>Удалять людей:</b> нажми "Удалить", введи имя, и я больше тебе о нём не напомню! (Не очень-то и хотелось)\n<b>Показать всех людей, которые есть в базе:</b> для этого нажми "Показать все ДР"
         ''',
         parse_mode=ParseMode.HTML,
         reply_markup=main_keyboard()
@@ -24,6 +23,9 @@ def explain(update, context):
 
 def wtf(update, context):
     update.message.reply_text('Не понимаю :(')
+
+def talk_to_me(update, context):
+    update.message.reply_text('🤖')
 
 def confirm_date(user_date):
     divided_date = user_date.split('.')
@@ -42,64 +44,89 @@ def confirm_date(user_date):
     else:
         return True
 
-def check_upcoming_birthdays(update, context):
-    user = get_or_create_user(db, update.effective_user, update.message.chat.id)
-    birthday_list = user_birthday_list(user['user_id'])
+def check_if_upcoming(user_date):
+    d, m, y = list(map(int, user_date.split('.')))
+    birthday = date(date.today().year, m, d)
+    if birthday > date.today():
+        return True
+    else:
+        return False
 
-    for person in birthday_list:
-        if person != None:
-            # if person['upcoming_birthday'] == True:
-            d, m, y = list(map(int, person['date'].split('.'))) # заменить через strptime
-            birthday = date(date.today().year, m, d)
-            delta = birthday - date.today()
-            years = abs(date(y, m, d) - birthday)/365
-            if delta.days == 0:
-                if '0_days' in context.user_data['reminder']:
-                    context.user_data['reminder']['0_days'].append([person['name'], person['date'], years])
-                else:
-                    context.user_data['reminder']['0_days'] = [person['name'], person['date'], years]
-            elif delta.days == 3 and person['priority'] in {1, 2}:
-                if '3_days' in context.user_data['reminder']:
-                    context.user_data['reminder']['3_days'].append([person['name'], person['date'], years])
-                else:
-                    context.user_data['reminder']['3_days'] = [person['name'], person['date'], years]
-            elif delta.days == 14 and person['priority'] == 1:
-                if '14_days' in context.user_data['reminder']:
-                    context.user_data['reminder']['14_days'].append([person['name'], person['date'], years])
-                else:
-                    context.user_data['reminder']['14_days'] = [person['name'], person['date'], years]
+def confirm_reminder_date(user_reminder_date):
+    try:
+        reminder_date = int(user_reminder_date)
+    except:
+        return 'Количество дней, за которое нужно напомнить о др, должно быть цифрой'
 
-    if len(context.user_data['reminder']) > 0:
-        upcoming_birthdays = format_upcoming_birthdays(context.user_data['reminder'])
-        context.user_data['reminder'].clear()
-        update.message.reply_text(
-            upcoming_birthdays,
-            parse_mode=ParseMode.HTML,
-            reply_markup=main_keyboard()
-        )
-        # context.bot.send_message(
-        #     chat_id = user['chat_id'],
-        #     text = 'Хоть что-то работает' # мб затупит т.к. text есть и в функции format_upcoming_birthdays. при ошибке -- заменить
-        # )
-
-def format_upcoming_birthdays(reminder):
-    text = f'<b>Сводка по ближайшим ДР</b>'
+    if reminder_date > 366:
+        return 'Нельзя ставить напоминания больше чам за год до др'
     
-    if '0_days' in reminder:
-        text += '<b>\nДР сегодня:</b>'
-        for person in reminder['0_days']:
-            text += f"\n{reminder['0_days'].index(person)}) {person[0]} : {person[1]}. Исполнилось {person[2]}\n"
+    return True
 
-    if '3_days' in reminder:
-        text += '<b>\nДР через 3 дня:</b>'
-        for person in reminder['3_days']:
-            text += f"\n{reminder['3_days'].index(person)}) {person[0]} : {person[1]}. Исполнится {person[2]}\n"
+def check_upcoming_birthdays(context): 
 
-    if '14_days' in reminder:
-        text += '<b>\nДР через 2 недели:</b>'
-        for person in reminder['14_days']:
-            text += f"\n{reminder['14_days'].index(person)}) {person[0]} : {person[1]}. Исполнилось {person[2]}\n"
+    for user in db.users.find():
+        birthday_list = user_birthday_list(user['user_id'])
+        reminder = []
+        for person in birthday_list:
+            if person != None:
+                if person['upcoming_birthday'] == True:
+                    d, m, y = list(map(int, person['date'].split('.')))
+                    birthday = date(date.today().year, m, d)
+                    delta = birthday - date.today()
+                    years = (abs(date(y, m, d) - birthday)/365).days
+                    if delta.days in set(person['reminder_dates']):
+                        for reminder_date in set(person['reminder_dates']):
+                            if delta.days - reminder_date == 0:
+                                reminder.append([reminder_date, [person['name'], person['date'], years]])
+                                if reminder_date == 0:
+                                    person_data = {'name':person['name'], 'field':'upcoming_birthday', 'change':False}
+                                    update_person(user['user_id'], person_data)
 
-    text += f'\n Чтобы получить сводку информации о человеке (интересы, подарки и прочее), нажми "Проверить" и введи его имя'
+        if len(reminder) > 0:
+            upcoming_birthdays = format_upcoming_birthdays(reminder)
+            reminder.clear()
+            context.bot.send_message(
+                chat_id = user['chat_id'],
+                text = upcoming_birthdays,
+                parse_mode=ParseMode.HTML 
+            )
+        
+def format_upcoming_birthdays(reminder):
+    text = f'<b>Сводка по ближайшим ДР</b>\n'
+
+    sorted_reminder = sorted(reminder, key = lambda x: x[0])
+
+    for item in sorted_reminder:
+        person = item[1]
+        if item[0] == 0:
+            text += f"\n{sorted_reminder.index(item)+1}) {person[0]}: {person[1]}. Сегодня исполнилось {person[2]}"
+        else:
+            text += f"\n{sorted_reminder.index(item)+1}) {person[0]}: {person[1]}. Через {item[0]} дней исполнится {person[2]}"
+
+    text += f'\n\nЧтобы получить сводку информации о человеке (интересы, подарки и прочее), нажми "<b>Проверить</b>" и введи его имя'
 
     return text
+
+def if_all_birthdays_are_upcoming(context):
+    if date.today().month == 12:
+        make_all_birthdays_upcoming()
+
+def send_base(update, context):
+    user = get_or_create_user(db, update.effective_user, update.message.chat.id)
+    birthday_list = user_birthday_list(user['user_id'])
+    text = '<b>Все записанные ДР:</b>\n'
+    temp = []
+    for person in birthday_list:
+        if person != None:
+            temp.append([person['name'], person['date']])
+    
+    sorted_base = sorted(temp, key = lambda x: x[0])
+    for person in sorted_base:
+        text += f"\n{sorted_base.index(person)+1}) {person[0]}: {person[1]}"
+
+    update.message.reply_text(
+        text,
+        reply_markup=main_keyboard(),
+        parse_mode=ParseMode.HTML
+    )

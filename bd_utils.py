@@ -2,7 +2,9 @@ from telegram import ReplyKeyboardMarkup
 
 def main_keyboard():
     return ReplyKeyboardMarkup([
-        ['Что я умею', 'Добавить', 'Проверить', 'Удалить', 'Изменить']
+        ['Что я умею', 'Добавить'], 
+        ['Проверить', 'Изменить'],
+        ['Удалить', 'Показать все ДР']
     ],
     resize_keyboard=True)
 
@@ -13,5 +15,10 @@ def skip_keyboard():
 
 def make_update_keyboard():
     return ReplyKeyboardMarkup([['Обновляем!']],
+    resize_keyboard=True
+    )
+
+def return_keyboard():
+    return ReplyKeyboardMarkup([['Назад']],
     resize_keyboard=True
     )
