@@ -2,7 +2,7 @@ from telegram import ParseMode, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ConversationHandler
 
 from bd_db import db, get_or_create_user, check_person, delete_person
-from bd_utils import main_keyboard, return_keyboard
+from bd_utils import main_keyboard, return_keyboard, return_to_main
 
 def check_person_start(update, context):
     update.message.reply_text(
@@ -12,10 +12,7 @@ def check_person_start(update, context):
     return 'check_person'
 
 def check_return(update, context):
-    update.message.reply_text(
-        'Упс, возвращаемся',
-        reply_markup=main_keyboard()
-    )
+    return_to_main(update)
     return ConversationHandler.END
 
 def check_person_operation(update, context):
@@ -68,10 +65,7 @@ def delete_person_start(update, context):
     return 'delete_person'
 
 def delete_return(update, context):
-    update.message.reply_text(
-        'Упс, возвращаемся',
-        reply_markup=main_keyboard()
-    )
+    return_to_main(update)
     return ConversationHandler.END
 
 def delete_person_operation(update, context):

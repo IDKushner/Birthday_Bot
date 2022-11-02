@@ -3,27 +3,26 @@ from telegram.ext import ConversationHandler
 
 from bd_db import db, get_or_create_user, check_person, update_person
 from bd_general_handlers import confirm_date, check_if_upcoming, confirm_reminder_date
-from bd_utils import main_keyboard, skip_keyboard, make_update_keyboard, return_keyboard
+from bd_utils import main_keyboard, skip_keyboard, make_update_keyboard, return_keyboard, return_to_main
 
 def update_person_start(update, context):
     update.message.reply_text(
         'Изменим информацию о человеке. Введи имя',
         reply_markup=return_keyboard()
-    ) # не даёт сделать replykeyboardremove: TypeError: Object of type type is not JSON serializable
+    )  # не даёт сделать replykeyboardremove: TypeError: Object of type type is not JSON serializable
     return 'name'
 
+
 def update_return(update, context):
-    update.message.reply_text(
-        'Упс, возвращаемся',
-        reply_markup=main_keyboard()
-    )
+    return_to_main(update)
     return ConversationHandler.END
+
 
 def add_name_for_updating(update, context):
     name = update.message.text
     user = get_or_create_user(db, update.effective_user, update.message.chat.id)
     person = check_person(user['user_id'], name)
-    if person:
+    if person: 
         context.user_data['birthday'] = person
         context.user_data['update'] = {'name':name}
         update_keyboard = [['name', 'date', 'reminder_dates', 'interests', 'possible_presents']]
@@ -39,6 +38,7 @@ def add_name_for_updating(update, context):
         )
         return ConversationHandler.END
 
+
 def add_field(update, context):
     context.user_data['update']['field'] = update.message.text
     update.message.reply_text(
@@ -46,6 +46,7 @@ def add_field(update, context):
             reply_markup=ReplyKeyboardRemove()
         )
     return 'change'
+
 
 def add_change(update, context):
     change = update.message.text
@@ -87,6 +88,7 @@ def add_change(update, context):
     if context.user_data['update']['field'] == 'possible_presents' and len(change) < 5:
         update.message.reply_text('Я не смогу запомнить подарок без хотя бы названия :(\nВведи хотя бы 5 символов')
         return 'change'
+
     else:
         if 'https://' in change:
             split_ind = change.index('https://')
@@ -112,7 +114,9 @@ def add_change(update, context):
 
     if context.user_data['update']['field'] not in {'reminder_dates', 'possible_presents'}:
         context.user_data['update']['change'] = change
-        context.user_data['birthday'][context.user_data['update']['field']] = change
+        updated_field = context.user_data['update']['field']
+        context.user_data['birthday'][updated_field] = change
+    
     update.message.reply_text(
         'Обновляем?',
         reply_markup=make_update_keyboard()

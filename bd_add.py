@@ -3,7 +3,7 @@ from telegram.ext import ConversationHandler
 
 from bd_db import db, get_or_create_user, save_birthday
 from bd_general_handlers import confirm_date, check_if_upcoming, confirm_reminder_date
-from bd_utils import main_keyboard, skip_keyboard, return_keyboard
+from bd_utils import main_keyboard, skip_keyboard, return_keyboard, return_to_main
 
 def add_start(update, context):
     update.message.reply_text(
@@ -13,10 +13,7 @@ def add_start(update, context):
     return 'name'
 
 def add_return(update, context):
-    update.message.reply_text(
-        'Упс, возвращаемся',
-        reply_markup=main_keyboard()
-    )
+    return_to_main(update)
     return ConversationHandler.END
 
 def add_name(update, context):

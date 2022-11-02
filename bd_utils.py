@@ -22,3 +22,9 @@ def return_keyboard():
     return ReplyKeyboardMarkup([['Назад']],
     resize_keyboard=True
     )
+
+def return_to_main(update):
+    return update.message.reply_text(
+        'Упс, возвращаемся',
+        reply_markup=main_keyboard()
+        )

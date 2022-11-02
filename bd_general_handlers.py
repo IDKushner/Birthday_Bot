@@ -14,9 +14,14 @@ def start(update, context):
     )
 
 def explain(update, context):
+    text = '<b> Что я умею: </b>\n\n'
+    text += '<b>Запоминать людей:</b> нажми "Добавить" и ответь на вопросы\n'
+    text += '<b>Проверять человека в базе:</b> нажми "Проверить" и введи имя человека: если он есть, я выдам тебе всю имеющуюся информацию о нём. Если его нет - скажу об этом\n'
+    text += '<b>Изменять</b> любые данные, которые ты вносил при добавлении человека (имя, дату др, интересы и пр.). Для этого нажми "Изменить"\n'
+    text += '<b>Удалять людей:</b> нажми "Удалить", введи имя, и я больше тебе о нём не напомню! (Не очень-то и хотелось)\n'
+    text += '<b>Показать всех людей, которые есть в базе:</b> для этого нажми "Показать все ДР"'
     update.message.reply_text(
-        '''<b> Что я умею: </b>\n\n<b>Запоминать людей:</b> нажми "Добавить" и ответь на вопросы\n<b>Проверять человека в базе:</b> нажми "Проверить" и введи имя человека: если он есть, я выдам тебе всю имеющуюся информацию о нём. Если его нет - скажу об этом\n<b>Изменять</b> любые данные, которые ты вносил при добавлении человека (имя, дату др, интересы и пр.). Для этого нажми "Изменить"\n<b>Удалять людей:</b> нажми "Удалить", введи имя, и я больше тебе о нём не напомню! (Не очень-то и хотелось)\n<b>Показать всех людей, которые есть в базе:</b> для этого нажми "Показать все ДР"
-        ''',
+        text,
         parse_mode=ParseMode.HTML,
         reply_markup=main_keyboard()
     )
@@ -78,7 +83,7 @@ def check_upcoming_birthdays(context):
                     if delta.days in set(person['reminder_dates']):
                         for reminder_date in set(person['reminder_dates']):
                             if delta.days - reminder_date == 0:
-                                reminder.append([reminder_date, [person['name'], person['date'], years]])
+                                reminder.append([reminder_date, person['name'], person['date'], years])
                                 if reminder_date == 0:
                                     person_data = {'name':person['name'], 'field':'upcoming_birthday', 'change':False}
                                     update_person(user['user_id'], person_data)
@@ -97,12 +102,15 @@ def format_upcoming_birthdays(reminder):
 
     sorted_reminder = sorted(reminder, key = lambda x: x[0])
 
-    for item in sorted_reminder:
-        person = item[1]
-        if item[0] == 0:
-            text += f"\n{sorted_reminder.index(item)+1}) {person[0]}: {person[1]}. Сегодня исполнилось {person[2]}"
+    for person in sorted_reminder:
+        reminder_date = person[0]
+        name = person[1]
+        birthday_date = person[2]
+        years = person[3]
+        if reminder_date == 0:
+            text += f"\n{sorted_reminder.index(person)+1}) {name}: {birthday_date}. Сегодня исполнилось {years}"
         else:
-            text += f"\n{sorted_reminder.index(item)+1}) {person[0]}: {person[1]}. Через {item[0]} дней исполнится {person[2]}"
+            text += f"\n{sorted_reminder.index(person)+1}) {name}: {birthday_date}. Через {reminder_date} дней исполнится {years}"
 
     text += f'\n\nЧтобы получить сводку информации о человеке (интересы, подарки и прочее), нажми "<b>Проверить</b>" и введи его имя'
 
@@ -116,6 +124,7 @@ def send_base(update, context):
     user = get_or_create_user(db, update.effective_user, update.message.chat.id)
     birthday_list = user_birthday_list(user['user_id'])
     text = '<b>Все записанные ДР:</b>\n'
+
     temp = []
     for person in birthday_list:
         if person != None:
